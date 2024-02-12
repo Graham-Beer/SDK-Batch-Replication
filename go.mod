@@ -1,4 +1,4 @@
-module batch/v2
+module AWS-SDK-S3Batch-Operation-job/v2
 
 go 1.22.0
 

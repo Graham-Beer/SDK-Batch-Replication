@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"AWS-SDK-S3Batch-Operation-job/v2/pkg/aws/s3controlFunction"
+
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3control"
-	"github.com/aws/aws-sdk-go-v2/service/s3control/types"
 )
 
 var (
@@ -30,47 +30,14 @@ func main() {
 	// Create S3 Control client
 	client := s3control.NewFromConfig(cfg)
 
-	// Specify the replication operation for the job
-	operation := types.JobOperation{
-		S3ReplicateObject: &types.S3ReplicateObjectOperation{},
-	}
+	// Create S3 Batch Operations job
+	operation := s3controlFunction.CreateReplicationOperation()
+	report := s3controlFunction.CreateReportConfig(reportBucket)
+	manifestGenerator := s3controlFunction.CreateManifestGenerator(manifestSourceBucket, accountID)
+	input := s3controlFunction.CreateJobInput(accountID, roleARN, operation, defaultPriority, report, manifestGenerator, jobRunConfirmationRequired)
 
-	// Specify the report configuration for the job
-	report := types.JobReport{
-		Enabled:     true,
-		Format:      types.JobReportFormatReportCsv20180820,
-		ReportScope: types.JobReportScopeAllTasks,
-		Bucket:      &reportBucket,
-	}
-
-	// Specify the manifest generation configuration for the job
-	manifestGenerator := &types.JobManifestGeneratorMemberS3JobManifestGenerator{
-		Value: types.S3JobManifestGenerator{
-			EnableManifestOutput: false,
-			SourceBucket:         &manifestSourceBucket,
-			ExpectedBucketOwner:  &accountID,
-			Filter: &types.JobManifestGeneratorFilter{
-				EligibleForReplication: aws.Bool(true),
-				ObjectReplicationStatuses: []types.ReplicationStatus{
-					types.ReplicationStatusFailed,
-				},
-			},
-		},
-	}
-
-	// Build the input for creating the job
-	input := &s3control.CreateJobInput{
-		AccountId:            &accountID,
-		Operation:            &operation,
-		Priority:             &defaultPriority,
-		Report:               &report,
-		RoleArn:              &roleARN,
-		ConfirmationRequired: &jobRunConfirmationRequired,
-		ManifestGenerator:    manifestGenerator,
-	}
-
-	// Create the job
-	result, err := client.CreateJob(context.Background(), input)
+	// Execute the job creation
+	result, err := s3controlFunction.CreateS3BatchOperationsJob(client, input)
 	if err != nil {
 		log.Fatalf("error creating S3 Batch Operations job: %v", err)
 	}
